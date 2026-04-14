@@ -1,0 +1,29 @@
+{
+  "linear": {
+    "baseUrl": ""
+  },
+  "models": {
+    "summary": "anthropic/claude-sonnet-4",
+    "extraction": "anthropic/claude-opus-4-6"
+  },
+  "reports": {
+    "autoProcessPreviousDayOnFirstEvent": false
+  },
+  "extraction": {
+    "rules": [
+      {
+        "id": "ticket-from-directory",
+        "description": "Extract a ticket id and customer slug from the current directory name. Customize the pattern to match your naming convention.",
+        "input": "cwdBasename",
+        "pattern": "^(?<customer>.+)-(?<ticket>[A-Z]+-\\d+)$",
+        "flags": "i",
+        "outputs": {
+          "ticketId": "{{ticket | upper}}",
+          "customer": "{{customer}}",
+          "sessionName": "{{cwdBasename}}",
+          "sessionGroup": "{{customer}}"
+        }
+      }
+    ]
+  }
+}

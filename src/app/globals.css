@@ -1,0 +1,167 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --ds-background-100: #ffffff;
+  --ds-background-200: #fafafa;
+  --ds-gray-100: #f2f2f2;
+  --ds-gray-200: #ebebeb;
+  --ds-gray-300: #e6e6e6;
+  --ds-gray-400: #ebebeb;
+  --ds-gray-500: #c9c9c9;
+  --ds-gray-600: #a8a8a8;
+  --ds-gray-700: #8f8f8f;
+  --ds-gray-800: #7d7d7d;
+  --ds-gray-900: #666666;
+  --ds-gray-1000: #171717;
+  --ds-blue-100: #f0f7ff;
+  --ds-blue-700: #0070f3;
+  --ds-blue-1000: #002040;
+  --ds-red-100: #fff0f0;
+  --ds-red-700: #e5484d;
+  --ds-red-1000: #3b1219;
+  --ds-amber-100: #fff7e6;
+  --ds-amber-700: #ffb224;
+  --ds-amber-1000: #4d2900;
+  --ds-green-100: #eefbee;
+  --ds-green-700: #46a758;
+  --ds-green-1000: #1b2d1d;
+  --ds-violet-100: #f4f0ff;
+  --ds-violet-700: #8b5cf6;
+  --ds-violet-1000: #2e1065;
+  --ds-cyan-100: #ecfeff;
+  --ds-cyan-700: #06b6d4;
+  --ds-cyan-1000: #083344;
+
+  --background: var(--ds-background-100);
+  --foreground: var(--ds-gray-1000);
+  --card: var(--ds-background-100);
+  --card-foreground: var(--ds-gray-1000);
+  --popover: var(--ds-background-100);
+  --popover-foreground: var(--ds-gray-1000);
+  --primary: var(--ds-gray-1000);
+  --primary-foreground: var(--ds-background-100);
+  --secondary: var(--ds-gray-100);
+  --secondary-foreground: var(--ds-gray-1000);
+  --muted: var(--ds-gray-100);
+  --muted-foreground: var(--ds-gray-700);
+  --accent: var(--ds-gray-100);
+  --accent-foreground: var(--ds-gray-1000);
+  --destructive: var(--ds-red-700);
+  --border: var(--ds-gray-400);
+  --input: var(--ds-gray-400);
+  --ring: var(--ds-blue-700);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --ds-background-100: #0a0a0a;
+  --ds-background-200: #000000;
+  --ds-gray-100: #1a1a1a;
+  --ds-gray-200: #1f1f1f;
+  --ds-gray-300: #292929;
+  --ds-gray-400: #333333;
+  --ds-gray-500: #525252;
+  --ds-gray-600: #6e6e6e;
+  --ds-gray-700: #878787;
+  --ds-gray-800: #a0a0a0;
+  --ds-gray-900: #b4b4b4;
+  --ds-gray-1000: #ededed;
+  --ds-blue-100: #0d1f3c;
+  --ds-blue-700: #0070f3;
+  --ds-blue-1000: #b4d5ff;
+  --ds-red-100: #3b1219;
+  --ds-red-700: #e5484d;
+  --ds-red-1000: #ffb4b4;
+  --ds-amber-100: #4d2900;
+  --ds-amber-700: #ffb224;
+  --ds-amber-1000: #ffe5b4;
+  --ds-green-100: #1b2d1d;
+  --ds-green-700: #46a758;
+  --ds-green-1000: #b4f0b4;
+  --ds-violet-100: #2e1065;
+  --ds-violet-700: #8b5cf6;
+  --ds-violet-1000: #ddd6fe;
+  --ds-cyan-100: #083344;
+  --ds-cyan-700: #06b6d4;
+  --ds-cyan-1000: #a5f3fc;
+}
+
+@theme inline {
+  --color-background-100: var(--ds-background-100);
+  --color-background-200: var(--ds-background-200);
+  --color-gray-100: var(--ds-gray-100);
+  --color-gray-200: var(--ds-gray-200);
+  --color-gray-300: var(--ds-gray-300);
+  --color-gray-400: var(--ds-gray-400);
+  --color-gray-500: var(--ds-gray-500);
+  --color-gray-600: var(--ds-gray-600);
+  --color-gray-700: var(--ds-gray-700);
+  --color-gray-800: var(--ds-gray-800);
+  --color-gray-900: var(--ds-gray-900);
+  --color-gray-1000: var(--ds-gray-1000);
+  --color-blue-100: var(--ds-blue-100);
+  --color-blue-700: var(--ds-blue-700);
+  --color-blue-1000: var(--ds-blue-1000);
+  --color-red-100: var(--ds-red-100);
+  --color-red-700: var(--ds-red-700);
+  --color-red-1000: var(--ds-red-1000);
+  --color-amber-100: var(--ds-amber-100);
+  --color-amber-700: var(--ds-amber-700);
+  --color-amber-1000: var(--ds-amber-1000);
+  --color-green-100: var(--ds-green-100);
+  --color-green-700: var(--ds-green-700);
+  --color-green-1000: var(--ds-green-1000);
+  --color-violet-100: var(--ds-violet-100);
+  --color-violet-700: var(--ds-violet-700);
+  --color-violet-1000: var(--ds-violet-1000);
+  --color-cyan-100: var(--ds-cyan-100);
+  --color-cyan-700: var(--ds-cyan-700);
+  --color-cyan-1000: var(--ds-cyan-1000);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--ds-background-100);
+  color: var(--ds-gray-1000);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+}
+
+@utility tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
