@@ -1,5 +1,5 @@
 import { generateText, Output } from "ai";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { events, sessions, tickets } from "@/db/schema";
 import {
@@ -10,6 +10,11 @@ import {
 import { visibleSessionsCondition } from "@/lib/session-visibility";
 import { getModelConfig } from "@/lib/observer-config";
 import { summarizeSession } from "./summarize-session";
+import {
+  deriveSessionGroupCustomer,
+  deriveSessionGroupTitle,
+  parseWorkItemId,
+} from "@/lib/work-items";
 
 const TICKET_SYSTEM_PROMPT = `You summarize tickets that group multiple coding-agent sessions.
 
@@ -50,7 +55,8 @@ interface FrictionPoint {
   severity: string;
 }
 
-export async function summarizeTicketWithPendingSessions(ticketId: string) {
+export async function summarizeTicketWithPendingSessions(workItemId: string) {
+  const workItem = parseWorkItemId(workItemId);
   const sessionStateRows = await db
     .select({
       id: sessions.id,
@@ -60,7 +66,7 @@ export async function summarizeTicketWithPendingSessions(ticketId: string) {
     .from(sessions)
     .leftJoin(events, eq(events.sessionId, sessions.id))
     .where(
-      and(eq(sessions.ticketId, ticketId), visibleSessionsCondition())
+      and(buildWorkItemSessionCondition(workItem), visibleSessionsCondition())
     )
     .groupBy(sessions.id)
     .orderBy(asc(sessions.startedAt));
@@ -81,19 +87,53 @@ export async function summarizeTicketWithPendingSessions(ticketId: string) {
     pendingSessionRows.map((session) => summarizeSession(session.id))
   );
 
-  await summarizeTicket(ticketId);
+  await summarizeTicket(workItemId);
 }
 
-export async function summarizeTicket(ticketId: string) {
+export async function summarizeTicket(workItemId: string) {
   try {
-    const [ticket] = await db
+    const workItem = parseWorkItemId(workItemId);
+    let [ticket] = await db
       .select({
         id: tickets.id,
         customer: tickets.customer,
         title: tickets.title,
       })
       .from(tickets)
-      .where(eq(tickets.id, ticketId));
+      .where(eq(tickets.id, workItem.storageId));
+
+    if (!ticket && workItem.kind === "group") {
+      const now = new Date();
+      const customer = deriveSessionGroupCustomer(workItem.sessionGroup);
+      const title = deriveSessionGroupTitle(workItem.sessionGroup);
+
+      await db
+        .insert(tickets)
+        .values({
+          id: workItem.storageId,
+          customer,
+          title,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoUpdate({
+          target: tickets.id,
+          set: {
+            customer,
+            title,
+            updatedAt: now,
+          },
+        });
+
+      [ticket] = await db
+        .select({
+          id: tickets.id,
+          customer: tickets.customer,
+          title: tickets.title,
+        })
+        .from(tickets)
+        .where(eq(tickets.id, workItem.storageId));
+    }
 
     if (!ticket) return;
 
@@ -110,7 +150,7 @@ export async function summarizeTicket(ticketId: string) {
         sessionType: sessions.sessionType,
       })
       .from(sessions)
-      .where(and(eq(sessions.ticketId, ticketId), visibleSessionsCondition()))
+      .where(and(buildWorkItemSessionCondition(workItem), visibleSessionsCondition()))
       .orderBy(asc(sessions.startedAt));
 
     const [eventState] = await db
@@ -119,10 +159,10 @@ export async function summarizeTicket(ticketId: string) {
       })
       .from(events)
       .innerJoin(sessions, eq(sessions.id, events.sessionId))
-      .where(and(eq(sessions.ticketId, ticketId), visibleSessionsCondition()));
+      .where(and(buildWorkItemSessionCondition(workItem), visibleSessionsCondition()));
     const latestEventId = eventState?.latestEventId ?? null;
 
-    const { toolStats, skillStats } = await getTicketToolStats(ticketId);
+    const { toolStats, skillStats } = await getTicketToolStats(workItem);
 
     if (sessionRows.length === 0) {
       await db
@@ -140,7 +180,7 @@ export async function summarizeTicket(ticketId: string) {
           summaryLastProcessedEventId: latestEventId,
           updatedAt: new Date(),
         })
-        .where(eq(tickets.id, ticketId));
+        .where(eq(tickets.id, workItem.storageId));
 
       return;
     }
@@ -154,7 +194,9 @@ export async function summarizeTicket(ticketId: string) {
       output: Output.object({ schema: ticketSummarySchema }),
       system: TICKET_SYSTEM_PROMPT,
       prompt: [
-        `Ticket ${ticket.id}`,
+        workItem.kind === "ticket"
+          ? `Ticket ${ticket.id}`
+          : `Session group ${workItem.displayId}`,
         `Customer: ${ticket.customer}`,
         ticket.title ? `Title: ${ticket.title}` : null,
         `Session count: ${sessionRows.length}`,
@@ -171,7 +213,7 @@ export async function summarizeTicket(ticketId: string) {
     if (!output) return;
 
     await persistTicketSummary(
-      ticketId,
+      workItem.storageId,
       output,
       toolStats,
       skillStats,
@@ -207,7 +249,7 @@ async function persistTicketSummary(
     .where(eq(tickets.id, ticketId));
 }
 
-async function getTicketToolStats(ticketId: string): Promise<{
+async function getTicketToolStats(workItem: ReturnType<typeof parseWorkItemId>): Promise<{
   toolStats: ToolStat[];
   skillStats: ToolStat[];
 }> {
@@ -220,7 +262,7 @@ async function getTicketToolStats(ticketId: string): Promise<{
     .innerJoin(sessions, eq(sessions.id, events.sessionId))
     .where(
       and(
-        eq(sessions.ticketId, ticketId),
+        buildWorkItemSessionCondition(workItem),
         eq(events.eventType, "tool_pre"),
         visibleSessionsCondition()
       )
@@ -251,6 +293,12 @@ async function getTicketToolStats(ticketId: string): Promise<{
     toolStats: sortStats(toolCounts),
     skillStats: sortStats(skillCounts),
   };
+}
+
+function buildWorkItemSessionCondition(workItem: ReturnType<typeof parseWorkItemId>) {
+  return workItem.kind === "ticket"
+    ? eq(sessions.ticketId, workItem.storageId)
+    : and(eq(sessions.sessionGroup, workItem.sessionGroup), isNull(sessions.ticketId));
 }
 
 function formatSessions(sessionRows: SessionRow[]) {

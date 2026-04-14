@@ -12,16 +12,14 @@
   "extraction": {
     "rules": [
       {
-        "id": "ticket-from-directory",
-        "description": "Extract a ticket id and customer slug from the current directory name. Customize the pattern to match your naming convention.",
+        "id": "group-by-repo-folder",
+        "description": "Group sessions by the repo folder name, for example /Users/you/dev/vercel/agent-observer -> agent-observer.",
         "input": "cwdBasename",
-        "pattern": "^(?<customer>.+)-(?<ticket>[A-Z]+-\\d+)$",
-        "flags": "i",
+        "pattern": "^(?<repo>.+)$",
         "outputs": {
-          "ticketId": "{{ticket | upper}}",
-          "customer": "{{customer}}",
-          "sessionName": "{{cwdBasename}}",
-          "sessionGroup": "{{customer}}"
+          "sessionName": "{{repo}}",
+          "sessionGroup": "{{repo}}",
+          "data.repo": "{{repo}}"
         }
       }
     ]

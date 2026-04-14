@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { decisions, decisionRuns, events, sessions, tickets } from "@/db/schema";
 import { visibleSessionsCondition } from "@/lib/session-visibility";
@@ -147,4 +147,35 @@ export async function getLatestTicketEventIds(ticketIds: string[]) {
     .groupBy(tickets.id);
 
   return new Map(rows.map((row) => [row.ticketId, row.latestEventId]));
+}
+
+export async function getLatestSessionGroupEventIds(sessionGroups: string[]) {
+  if (sessionGroups.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const rows = await db
+    .select({
+      sessionGroup: sessions.sessionGroup,
+      latestEventId: sql<number>`max(${events.id})`,
+    })
+    .from(sessions)
+    .innerJoin(events, eq(events.sessionId, sessions.id))
+    .where(
+      and(
+        inArray(sessions.sessionGroup, sessionGroups),
+        isNull(sessions.ticketId),
+        visibleSessionsCondition()
+      )
+    )
+    .groupBy(sessions.sessionGroup);
+
+  return new Map(
+    rows
+      .filter(
+        (row): row is { sessionGroup: string; latestEventId: number } =>
+          typeof row.sessionGroup === "string"
+      )
+      .map((row) => [row.sessionGroup, row.latestEventId])
+  );
 }

@@ -16,7 +16,7 @@ export function Nav() {
           <NavLink href="/reports">Reports</NavLink>
           <NavLink href="/stats">Stats</NavLink>
           <NavLink href="/sessions">Sessions</NavLink>
-          <NavLink href="/tickets">Tickets</NavLink>
+          <NavLink href="/tickets">Work Items</NavLink>
         </div>
       </div>
     </nav>

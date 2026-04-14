@@ -44,15 +44,15 @@ export function SessionTicketButton({
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        Set ticket
+        Set work item
       </Button>
 
       <Dialog open={open} onOpenChange={(nextOpen) => setOpen(nextOpen)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Set ticket</DialogTitle>
+            <DialogTitle>Set work item</DialogTitle>
             <DialogDescription>
-              Add a ticket id for this session.
+              Add a work item id for this session.
             </DialogDescription>
           </DialogHeader>
 
@@ -60,7 +60,7 @@ export function SessionTicketButton({
             autoFocus
             value={ticketId}
             onChange={(event) => setTicketId(event.target.value)}
-            placeholder="DSE-1234"
+            placeholder="DSE-1234 or custom-id"
             className="w-full font-mono"
           />
 

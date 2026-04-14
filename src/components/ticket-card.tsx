@@ -5,8 +5,10 @@ import {
   TicketArtifactsMenu,
   type TicketArtifactMenuItem,
 } from "./ticket-artifacts-menu";
+import { buildWorkItemPath } from "@/lib/work-items";
 
 interface TicketCardProps {
+  routeId: string;
   id: string;
   customer: string;
   title: string | null;
@@ -19,6 +21,7 @@ interface TicketCardProps {
 }
 
 export function TicketCard({
+  routeId,
   id,
   customer,
   title,
@@ -35,7 +38,7 @@ export function TicketCard({
 
   return (
     <Card className="p-5 transition-colors hover:border-gray-500 md:p-6">
-      <Link href={`/tickets/${id}`} className="block">
+      <Link href={buildWorkItemPath(routeId)} className="block">
         <div className="mb-2 flex items-start justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-[13px] font-mono font-medium text-blue-700">
@@ -81,7 +84,7 @@ export function TicketCard({
       <div className="mt-3 flex items-center justify-between gap-3 border-t border-gray-200 pt-3">
         <TicketArtifactsMenu artifacts={artifacts} />
         <TicketSummaryTriggerButton
-          ticketId={id}
+          workItemId={routeId}
           hasSummary={hasSummary}
           needsRefresh={summaryNeedsRefresh}
           compact

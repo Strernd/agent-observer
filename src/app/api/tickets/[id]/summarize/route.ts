@@ -7,7 +7,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    await summarizeTicketWithPendingSessions(id.toUpperCase());
+    await summarizeTicketWithPendingSessions(id);
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[agent-observer] Ticket summarize error:", err);

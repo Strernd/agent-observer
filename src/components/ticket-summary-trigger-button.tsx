@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
 export function TicketSummaryTriggerButton({
-  ticketId,
+  workItemId,
   hasSummary,
   needsRefresh = false,
   compact = false,
 }: {
-  ticketId: string;
+  workItemId: string;
   hasSummary: boolean;
   needsRefresh?: boolean;
   compact?: boolean;
@@ -23,12 +23,12 @@ export function TicketSummaryTriggerButton({
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/tickets/${ticketId}/summarize`, {
+      const response = await fetch(`/api/tickets/${encodeURIComponent(workItemId)}/summarize`, {
         method: "POST",
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to summarize ticket (${response.status})`);
+        throw new Error(`Failed to summarize work item (${response.status})`);
       }
 
       startTransition(() => {
@@ -52,18 +52,18 @@ export function TicketSummaryTriggerButton({
       {isLoading || isPending
         ? compact
           ? "Summarizing..."
-          : "Summarizing Ticket..."
+          : "Summarizing Work Item..."
         : needsRefresh
           ? compact
             ? "Refresh Summary"
-            : "Refresh Ticket Summary"
+            : "Refresh Work Item Summary"
           : hasSummary
           ? compact
             ? "Regenerate Summary"
-            : "Regenerate Ticket Summary"
+            : "Regenerate Work Item Summary"
           : compact
             ? "Generate Summary"
-            : "Generate Ticket Summary"}
+            : "Generate Work Item Summary"}
     </Button>
   );
 }

@@ -88,6 +88,8 @@ export function extractSessionData(
         result.data[outputKey.slice("data.".length)] = renderedValue;
       }
     }
+
+    break;
   }
 
   return result;

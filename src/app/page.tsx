@@ -2,7 +2,17 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/db";
 import { events, sessions, tickets } from "@/db/schema";
-import { and, desc, eq, gte, inArray, isNull, sql, count } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  sql,
+} from "drizzle-orm";
 import { SessionCard } from "@/components/session-card";
 import { TicketCard } from "@/components/ticket-card";
 import type { TicketArtifactMenuItem } from "@/components/ticket-artifacts-menu";
@@ -21,16 +31,34 @@ import { visibleSessionsCondition } from "@/lib/session-visibility";
 import {
   getLatestSessionDecisionStates,
   getLatestSessionEventIds,
+  getLatestSessionGroupEventIds,
   getLatestTicketEventIds,
   getSessionInsightCounts,
   getSessionsWithSuccessfulDecisionRuns,
 } from "@/lib/session-ai-state";
+import {
+  buildGroupWorkItemId,
+  deriveSessionGroupCustomer,
+  deriveSessionGroupTitle,
+} from "@/lib/work-items";
 
 export const dynamic = "force-dynamic";
 
+type WorkItemListRow = {
+  routeId: string;
+  id: string;
+  customer: string;
+  title: string | null;
+  currentState: string | null;
+  progress: string | null;
+  summaryLastProcessedEventId: number | null;
+  sessionCount: number;
+  latestActivity: number | null;
+};
+
 export default async function OverviewPage() {
   const latestActivityExpr = sql<number>`max(coalesce(${events.timestamp}, coalesce(${sessions.endedAt}, ${sessions.startedAt}))) * 1000`;
-  const ticketList = await db
+  const realTicketRows = await db
     .select({
       id: tickets.id,
       customer: tickets.customer,
@@ -50,11 +78,90 @@ export default async function OverviewPage() {
     .groupBy(tickets.id)
     .orderBy(desc(latestActivityExpr))
     .limit(10);
+  const sessionGroupRows = await db
+    .select({
+      sessionGroup: sessions.sessionGroup,
+      sessionCount: sql<number>`count(distinct ${sessions.id})`,
+      latestActivity: latestActivityExpr,
+    })
+    .from(sessions)
+    .leftJoin(events, eq(events.sessionId, sessions.id))
+    .where(and(isNull(sessions.ticketId), isNotNull(sessions.sessionGroup), visibleSessionsCondition()))
+    .groupBy(sessions.sessionGroup)
+    .orderBy(desc(latestActivityExpr))
+    .limit(10);
+  const groupSummaryIds = sessionGroupRows
+    .map((row) => row.sessionGroup)
+    .filter((value): value is string => typeof value === "string")
+    .map((sessionGroup) => buildGroupWorkItemId(sessionGroup));
+  const groupSummaryRows =
+    groupSummaryIds.length > 0
+      ? await db
+          .select({
+            id: tickets.id,
+            customer: tickets.customer,
+            title: tickets.title,
+            currentState: tickets.summaryCurrentState,
+            progress: tickets.summaryProgress,
+            summaryLastProcessedEventId: tickets.summaryLastProcessedEventId,
+          })
+          .from(tickets)
+          .where(inArray(tickets.id, groupSummaryIds))
+      : [];
+  const groupSummaryById = new Map(groupSummaryRows.map((row) => [row.id, row]));
+  const realTicketIds = realTicketRows
+    .map((ticket) => ticket.id)
+    .filter((value): value is string => typeof value === "string");
+  const realWorkItems: WorkItemListRow[] = realTicketRows
+    .filter(
+      (ticket): ticket is typeof ticket & { id: string; customer: string } =>
+        typeof ticket.id === "string" && typeof ticket.customer === "string"
+    )
+    .map((ticket) => ({
+      routeId: ticket.id,
+      id: ticket.id,
+      customer: ticket.customer,
+      title: ticket.title,
+      currentState: ticket.currentState,
+      progress: ticket.progress,
+      summaryLastProcessedEventId: ticket.summaryLastProcessedEventId,
+      sessionCount: ticket.sessionCount,
+      latestActivity: ticket.latestActivity,
+    }));
+  const ticketList: WorkItemListRow[] = [
+    ...realWorkItems,
+    ...sessionGroupRows.flatMap((row) => {
+      if (typeof row.sessionGroup !== "string") {
+        return [];
+      }
+
+      const sessionGroup = row.sessionGroup;
+      const routeId = buildGroupWorkItemId(sessionGroup);
+      const summaryRow = groupSummaryById.get(routeId);
+      return [
+        {
+          routeId,
+          id: sessionGroup,
+          customer:
+            summaryRow?.customer ?? deriveSessionGroupCustomer(sessionGroup),
+          title: summaryRow?.title ?? deriveSessionGroupTitle(sessionGroup),
+          currentState: summaryRow?.currentState ?? null,
+          progress: summaryRow?.progress ?? null,
+          summaryLastProcessedEventId:
+            summaryRow?.summaryLastProcessedEventId ?? null,
+          sessionCount: row.sessionCount,
+          latestActivity: row.latestActivity,
+        },
+      ];
+    }),
+  ]
+    .sort((a, b) => (b.latestActivity ?? 0) - (a.latestActivity ?? 0))
+    .slice(0, 10);
 
   const untaggedSessions = await db
     .select()
     .from(sessions)
-    .where(and(isNull(sessions.ticketId), visibleSessionsCondition()))
+    .where(and(isNull(sessions.ticketId), isNull(sessions.sessionGroup), visibleSessionsCondition()))
     .orderBy(desc(sessions.startedAt))
     .limit(10);
   const untaggedSessionsWithDecisions =
@@ -71,11 +178,16 @@ export default async function OverviewPage() {
     untaggedSessions.map((session) => session.id)
   );
   const ticketLatestEventIds = await getLatestTicketEventIds(
-    ticketList.map((ticket) => ticket.id)
+    realTicketIds
+  );
+  const sessionGroupLatestEventIds = await getLatestSessionGroupEventIds(
+    sessionGroupRows
+      .map((row) => row.sessionGroup)
+      .filter((value): value is string => typeof value === "string")
   );
   const sessionArtifactsByTicket = new Map<string, TicketArtifactMenuItem[]>();
 
-  if (ticketList.length > 0) {
+  if (realTicketIds.length > 0) {
     const sessionArtifactRows = await db
       .select({
         ticketId: sessions.ticketId,
@@ -88,7 +200,7 @@ export default async function OverviewPage() {
         and(
           inArray(
             sessions.ticketId,
-            ticketList.map((ticket) => ticket.id)
+            realTicketIds
           ),
           visibleSessionsCondition()
         )
@@ -110,6 +222,46 @@ export default async function OverviewPage() {
       }
 
       sessionArtifactsByTicket.set(row.ticketId, existing);
+    }
+  }
+
+  const sessionGroups = sessionGroupRows
+    .map((row) => row.sessionGroup)
+    .filter((value): value is string => typeof value === "string");
+  if (sessionGroups.length > 0) {
+    const sessionArtifactRows = await db
+      .select({
+        sessionGroup: sessions.sessionGroup,
+        sessionId: sessions.id,
+        outputArtifacts: sessions.outputArtifacts,
+        startedAt: sessions.startedAt,
+      })
+      .from(sessions)
+      .where(
+        and(
+          inArray(sessions.sessionGroup, sessionGroups),
+          isNull(sessions.ticketId),
+          visibleSessionsCondition()
+        )
+      )
+      .orderBy(desc(sessions.startedAt));
+
+    for (const row of sessionArtifactRows) {
+      if (!row.sessionGroup) continue;
+      const routeId = buildGroupWorkItemId(row.sessionGroup);
+      const existing = sessionArtifactsByTicket.get(routeId) ?? [];
+      const seenPaths = new Set(existing.map((artifact) => artifact.path));
+
+      for (const artifact of parseJsonArray<OutputArtifact>(row.outputArtifacts)) {
+        if (seenPaths.has(artifact.path)) continue;
+        seenPaths.add(artifact.path);
+        existing.push({
+          path: artifact.path,
+          sessionId: row.sessionId,
+        });
+      }
+
+      sessionArtifactsByTicket.set(routeId, existing);
     }
   }
 
@@ -177,7 +329,7 @@ export default async function OverviewPage() {
           </span>
           <span>
             <strong className="text-gray-1000">{ticketList.length}</strong>{" "}
-            tickets
+            work items
           </span>
           <span>
             <strong className="text-gray-1000">{formatBytes(dbDiskUsage)}</strong>{" "}
@@ -341,7 +493,7 @@ export default async function OverviewPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h2 className="text-[16px] font-semibold">Active Tickets</h2>
+              <h2 className="text-[16px] font-semibold">Active Work Items</h2>
               <Link
                 href="/tickets"
                 className="text-[13px] text-blue-700 hover:underline"
@@ -350,24 +502,27 @@ export default async function OverviewPage() {
               </Link>
             </div>
             {ticketList.length === 0 ? (
-              <p className="text-[13px] text-gray-700">No tickets yet</p>
+              <p className="text-[13px] text-gray-700">No work items yet</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {ticketList.map((t) => {
-                  const latestEventId = ticketLatestEventIds.get(t.id) ?? null;
+                  const latestEventId = t.routeId.startsWith("group:")
+                    ? sessionGroupLatestEventIds.get(t.id) ?? null
+                    : ticketLatestEventIds.get(t.id) ?? null;
                   const summaryNeedsRefresh =
                     latestEventId !== null &&
                     (t.summaryLastProcessedEventId ?? 0) < latestEventId;
 
                   return (
                   <TicketCard
-                    key={t.id}
+                    key={t.routeId}
+                    routeId={t.routeId}
                     id={t.id}
                     customer={t.customer}
                     title={t.title}
                     currentState={t.currentState}
                     progress={t.progress}
-                    artifacts={sessionArtifactsByTicket.get(t.id) ?? []}
+                    artifacts={sessionArtifactsByTicket.get(t.routeId) ?? []}
                     summaryNeedsRefresh={summaryNeedsRefresh}
                     sessionCount={t.sessionCount}
                     latestActivity={t.latestActivity}
@@ -381,7 +536,7 @@ export default async function OverviewPage() {
           <div>
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-[16px] font-semibold">
-                Recent Sessions (untagged)
+                Recent Sessions (ungrouped)
               </h2>
               <Link
                 href="/sessions"
@@ -392,7 +547,7 @@ export default async function OverviewPage() {
             </div>
             {untaggedSessions.length === 0 ? (
               <p className="text-[13px] text-gray-700">
-                All sessions are tagged
+                All sessions are grouped
               </p>
             ) : (
               <div className="flex flex-col gap-2">

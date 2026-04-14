@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { tickets, sessions } from "@/db/schema";
-import { and, eq, desc } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { SessionCard } from "@/components/session-card";
 import { ConfidenceBadge, ToolBadge } from "@/components/badge";
 import { notFound } from "next/navigation";
@@ -15,6 +15,11 @@ import {
   getSessionInsightCounts,
   getSessionsWithSuccessfulDecisionRuns,
 } from "@/lib/session-ai-state";
+import {
+  deriveSessionGroupCustomer,
+  deriveSessionGroupTitle,
+  parseWorkItemId,
+} from "@/lib/work-items";
 
 export const dynamic = "force-dynamic";
 
@@ -35,18 +40,24 @@ export default async function TicketDetailPage({
   params: Promise<{ ticketId: string }>;
 }) {
   const { ticketId } = await params;
+  const workItem = parseWorkItemId(ticketId);
 
   const [ticket] = await db
     .select()
     .from(tickets)
-    .where(eq(tickets.id, ticketId.toUpperCase()));
-
-  if (!ticket) return notFound();
+    .where(eq(tickets.id, workItem.storageId));
 
   const sessionList = await db
     .select()
     .from(sessions)
-    .where(and(eq(sessions.ticketId, ticket.id), visibleSessionsCondition()))
+    .where(
+      and(
+        workItem.kind === "ticket"
+          ? eq(sessions.ticketId, workItem.storageId)
+          : and(eq(sessions.sessionGroup, workItem.sessionGroup), isNull(sessions.ticketId)),
+        visibleSessionsCondition()
+      )
+    )
     .orderBy(desc(sessions.startedAt));
   const sessionsWithDecisions = await getSessionsWithSuccessfulDecisionRuns(
     sessionList.map((session) => session.id)
@@ -62,12 +73,24 @@ export default async function TicketDetailPage({
   );
 
   if (sessionList.length === 0) return notFound();
-  const linearIssueUrl = buildLinearIssueUrl(ticket.id);
-  const progress = parseJsonArray<string>(ticket.summaryProgress);
-  const openQuestions = parseJsonArray<string>(ticket.summaryOpenQuestions);
-  const blockers = parseJsonArray<string>(ticket.summaryBlockers);
-  const toolStats = parseJsonArray<ToolStat>(ticket.toolStats);
-  const skillStats = parseJsonArray<ToolStat>(ticket.skillStats);
+  const customer =
+    ticket?.customer ??
+    (workItem.kind === "group"
+      ? deriveSessionGroupCustomer(workItem.sessionGroup)
+      : "unknown");
+  const displayId = workItem.displayId;
+  const title =
+    ticket?.title ??
+    (workItem.kind === "group"
+      ? deriveSessionGroupTitle(workItem.sessionGroup)
+      : null);
+  const linearIssueUrl =
+    workItem.kind === "ticket" ? buildLinearIssueUrl(workItem.displayId) : null;
+  const progress = parseJsonArray<string>(ticket?.summaryProgress ?? null);
+  const openQuestions = parseJsonArray<string>(ticket?.summaryOpenQuestions ?? null);
+  const blockers = parseJsonArray<string>(ticket?.summaryBlockers ?? null);
+  const toolStats = parseJsonArray<ToolStat>(ticket?.toolStats ?? null);
+  const skillStats = parseJsonArray<ToolStat>(ticket?.skillStats ?? null);
   const visibleToolStats = toolStats.filter(
     (tool) => tool.name !== "Skill" || skillStats.length === 0
   );
@@ -89,11 +112,11 @@ export default async function TicketDetailPage({
     0
   );
   const hasSummary =
-    Boolean(ticket.summaryCurrentState) ||
+    Boolean(ticket?.summaryCurrentState) ||
     progress.length > 0 ||
     openQuestions.length > 0 ||
     blockers.length > 0 ||
-    Boolean(ticket.summaryNextAction);
+    Boolean(ticket?.summaryNextAction);
   const latestTicketEventId = sessionList.reduce<number | null>((max, session) => {
     const latestEventId = sessionLatestEventIds.get(session.id);
     if (latestEventId === undefined) {
@@ -104,7 +127,7 @@ export default async function TicketDetailPage({
   }, null);
   const summaryNeedsRefresh =
     latestTicketEventId !== null &&
-    (ticket.summaryLastProcessedEventId ?? 0) < latestTicketEventId;
+    (ticket?.summaryLastProcessedEventId ?? 0) < latestTicketEventId;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -112,10 +135,10 @@ export default async function TicketDetailPage({
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-[24px] font-semibold tracking-tight font-mono">
-            {ticket.id}
+            {displayId}
           </h1>
           <span className="text-[16px] text-gray-900 capitalize">
-            {ticket.customer}
+            {customer}
           </span>
           {linearIssueUrl && (
             <a
@@ -128,8 +151,8 @@ export default async function TicketDetailPage({
             </a>
           )}
         </div>
-        {ticket.title && (
-          <p className="text-[14px] text-gray-900">{ticket.title}</p>
+        {title && (
+          <p className="text-[14px] text-gray-900">{title}</p>
         )}
         <p className="text-[13px] text-gray-700 mt-1">
           {sessionList.length} session{sessionList.length !== 1 ? "s" : ""}
@@ -221,7 +244,7 @@ export default async function TicketDetailPage({
         <div className="space-y-6">
           <div className="flex justify-end">
             <TicketSummaryTriggerButton
-              ticketId={ticket.id}
+              workItemId={workItem.routeId}
               hasSummary={hasSummary}
               needsRefresh={summaryNeedsRefresh}
             />
@@ -231,9 +254,9 @@ export default async function TicketDetailPage({
             <div>
               <div className="mb-3 flex items-center gap-2">
                 <h3 className="text-[14px] font-semibold">Current State</h3>
-                <ConfidenceBadge confidence={ticket.summaryConfidence} />
+                <ConfidenceBadge confidence={ticket?.summaryConfidence ?? null} />
               </div>
-              {ticket.summaryCurrentState && (
+              {ticket?.summaryCurrentState && (
                 <p className="text-[13px] text-gray-900 leading-relaxed">
                   {ticket.summaryCurrentState}
                 </p>
@@ -278,7 +301,7 @@ export default async function TicketDetailPage({
                 </div>
               )}
 
-              {ticket.summaryNextAction && (
+              {ticket?.summaryNextAction && (
                 <div className="mt-4">
                   <h4 className="mb-2 text-[13px] font-medium text-gray-1000">
                     Next Best Action
@@ -293,7 +316,7 @@ export default async function TicketDetailPage({
             <div>
               <h3 className="text-[14px] font-semibold mb-2">Current State</h3>
               <p className="text-[13px] text-gray-700">
-                No ticket summary yet. Generate one when you want a fresh
+                No work item summary yet. Generate one when you want a fresh
                 cross-session synthesis.
               </p>
             </div>

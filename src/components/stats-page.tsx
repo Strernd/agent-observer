@@ -243,14 +243,14 @@ export async function StatsPage({
 
             <section>
               <SectionHeader
-                title="Work and Tickets"
-                description="Tagged work mix, session type mix, and the customers or tickets driving activity."
+                title="Work Items"
+                description="Tagged work mix, session type mix, and the customers or work items driving activity."
                 metricId="taggedSessionShare"
               />
               <div className="grid gap-4 xl:grid-cols-2">
                 <ChartCard
-                  title="Tagged vs Untagged"
-                  description="Raw session counts for tracked vs untracked work."
+                  title="Assigned vs Unassigned"
+                  description="Raw session counts for assigned vs unassigned work."
                   metricId="taggedSessionShare"
                 >
                   <HorizontalBarList data={data.work.taggedVsUntagged} />
@@ -270,8 +270,8 @@ export async function StatsPage({
                   <CustomerList rows={data.work.customerRows} />
                 </ChartCard>
                 <ChartCard
-                  title="Most Active Tickets"
-                  description="Tickets ranked by event volume."
+                  title="Most Active Work Items"
+                  description="Work items ranked by event volume."
                   metricId="events"
                 >
                   <TicketList rows={data.work.ticketRows} />

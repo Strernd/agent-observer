@@ -23,6 +23,11 @@ import { duration, formatDate, formatTime, relativeTimestamp } from "@/lib/forma
 import { isVisibleSessionRow } from "@/lib/session-visibility";
 import type { OutputArtifact } from "@/lib/ai/schemas";
 import { ArtifactActions } from "@/components/artifact-actions";
+import Link from "next/link";
+import {
+  buildGroupWorkItemId,
+  buildWorkItemPath,
+} from "@/lib/work-items";
 
 export const dynamic = "force-dynamic";
 
@@ -96,9 +101,12 @@ export default async function SessionDetailPage({
             <SourceBadge source={session.source} />
             <SessionTypeBadge type={session.sessionType} />
             {derived.sessionGroup && (
-              <span className="text-[12px] text-gray-700">
+              <Link
+                href={buildWorkItemPath(buildGroupWorkItemId(derived.sessionGroup))}
+                className="text-[12px] text-gray-700 hover:text-gray-1000 hover:underline"
+              >
                 {derived.sessionGroup}
-              </span>
+              </Link>
             )}
           </div>
           {ticketId ? (

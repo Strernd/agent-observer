@@ -54,7 +54,7 @@ Check whether extraction is effectively unset:
 - `observer.config.json` doesn't exist yet, or
 - `linear.baseUrl` is empty, or
 - `extraction.rules` is empty, or
-- the config still has the example placeholder pattern rather than the user's real naming convention
+- the config still has the generic example folder-grouping rule rather than the user's real naming convention
 
 If extraction is not meaningfully configured, ask the user whether they want you to set up:
 

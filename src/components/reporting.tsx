@@ -80,14 +80,14 @@ export function ReportsFilterBar({
                 <option value="unknown">Unknown</option>
               </NativeSelect>
             </Field>
-            <Field label="Ticket Status">
+            <Field label="Work Item Status">
               <NativeSelect
                 name="ticketStatus"
                 defaultValue={filters.ticketStatus}
               >
                 <option value="all">All</option>
                 <option value="tagged">Tagged</option>
-                <option value="untagged">Untagged</option>
+                <option value="untagged">Unassigned</option>
               </NativeSelect>
             </Field>
             <Field label="Custom Dates">
@@ -146,10 +146,10 @@ export function ReportsFilterBar({
                 }))}
               />
             </Field>
-            <Field label="Ticket">
+            <Field label="Work Item">
               <MultiSelect
                 name="ticket"
-                placeholder="All tickets"
+                placeholder="All work items"
                 defaultSelected={filters.tickets}
                 options={options.tickets.map((ticket) => ({
                   value: ticket.id,
@@ -653,7 +653,7 @@ export function SkillTable({ rows }: { rows: SkillTableRow[] }) {
         { label: "Uses", align: "right" },
         { label: "Share", metricId: "toolShare", align: "right" },
         { label: "Sessions", align: "right" },
-        { label: "Tickets", align: "right" },
+        { label: "Work Items", align: "right" },
       ]}
       rows={rows.map((row) => [
         row.name,
@@ -733,7 +733,7 @@ export function DrilldownTable({ rows }: { rows: SessionDrilldownRow[] }) {
           <TableHead>Source</TableHead>
           <TableHead>Model</TableHead>
           <TableHead>Type</TableHead>
-          <TableHead>Ticket</TableHead>
+          <TableHead>Work Item</TableHead>
           <TableHead className="text-right">Events</TableHead>
           <TableHead className="text-right">Tools</TableHead>
           <TableHead className="text-right">Errors</TableHead>
@@ -776,7 +776,7 @@ export function DrilldownTable({ rows }: { rows: SessionDrilldownRow[] }) {
                     {row.ticketId}
                   </span>
                 ) : (
-                  <span className="text-gray-600">Untagged</span>
+                  <span className="text-gray-600">Unassigned</span>
                 )}
               </div>
               {row.customer ? (

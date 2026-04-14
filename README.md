@@ -50,7 +50,7 @@ This key is required for AI-powered features (session summaries, decision extrac
 
 In `observer.config.json`, set:
 
-- `linear.baseUrl` (optional but recommended)
+- `linear.baseUrl` if you want real Linear issue links
 - `extraction.rules` for your naming conventions
 - optional model overrides in `models`
 
@@ -125,16 +125,13 @@ All config lives in `observer.config.json`.
   "extraction": {
     "rules": [
       {
-        "id": "ticket-from-directory",
+        "id": "group-by-repo-folder",
         "input": "cwdBasename",
-        "pattern": "^(?<customer>.+)-(?<ticket>[A-Z]+-\\d+)$",
-        "flags": "i",
+        "pattern": "^(?<repo>.+)$",
         "outputs": {
-          "ticketId": "{{ticket | upper}}",
-          "customer": "{{customer}}",
-          "sessionName": "{{cwdBasename}}",
-          "sessionGroup": "{{customer}}",
-          "data.repo": "{{cwdBasename}}"
+          "sessionName": "{{repo}}",
+          "sessionGroup": "{{repo}}",
+          "data.repo": "{{repo}}"
         }
       }
     ]
@@ -147,6 +144,7 @@ All config lives in `observer.config.json`.
 - Format: `https://linear.app/<workspace>/issue`
 - Used to render clickable ticket links.
 - Leave empty to disable external ticket linking.
+- Not required for folder-based grouping.
 
 ### `models`
 
@@ -191,7 +189,21 @@ Template filters:
 - `lower`
 - `trim`
 
-Important: the default example pattern is a placeholder. Replace it with your real branch/directory naming convention or extraction will be misleading.
+Rules are evaluated in order, and the first matching rule wins. Once a rule matches, later rules are not evaluated for that session.
+
+That means you should put more specific rules first and broader fallbacks later. For example:
+
+- first: a Linear-style ticket rule like `ABC-123`
+- second: a generic folder-group rule like `vercel/agent-observer`
+
+If a rule sets `sessionGroup` but not `ticketId`, Agent Observer still creates a ticket-like group in the Tickets UI. Those groups can be summarized across sessions, but they do not link out to Linear.
+
+The example config groups by `cwdBasename`. For example:
+
+- `/Users/you/dev/vercel/demo-days-pulse` -> `sessionGroup = demo-days-pulse`
+- `/Users/you/dev/vercel/personal-agent` -> `sessionGroup = personal-agent`
+
+If you use a different directory layout or branch naming convention, replace the example rule.
 
 ## UI Guide
 
@@ -199,7 +211,7 @@ Important: the default example pattern is a placeholder. Replace it with your re
 - `Sessions`: searchable session list + batch summary/decision actions.
 - `Session Detail`: tabs for Summary, Decisions, Friction, and raw Events.
 - `Tickets`: grouped ticket list, artifact counts, summary freshness.
-- `Ticket Detail`: cross-session ticket summary, tool/skill stats, session list.
+- `Ticket Detail`: cross-session ticket or folder-group summary, tool/skill stats, session list.
 - `Reports`: day-by-day AI report history.
 - `Stats`: trend analytics with filters for time range/source/model/session type/tickets/tools.
 
@@ -231,6 +243,7 @@ Base local origin: `http://127.0.0.1:43199`
 ### Ticket Endpoints
 
 - `POST /api/tickets/:id/summarize`
+  - Supports real ticket IDs and synthetic folder-group IDs like `group:vercel/agent-observer`
 
 ### Daily Report Endpoints
 
@@ -274,4 +287,4 @@ pnpm run uninstall-opencode-hooks
 - Ticket links do not open:
   - Set `linear.baseUrl` correctly
 - Ticket grouping is wrong:
-  - Replace placeholder extraction rule with your real naming pattern
+  - Adjust the extraction rule to match your actual folder or branch naming pattern

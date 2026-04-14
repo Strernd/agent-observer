@@ -131,9 +131,9 @@ export const metricDefinitions: Record<string, MetricDefinition> = {
   taggedSessionShare: {
     id: "taggedSessionShare",
     label: "Tagged Session Share",
-    definition: "Share of sessions with a non-null ticketId.",
+    definition: "Share of sessions with a non-null work item id.",
     formula: "(tagged_sessions / total_sessions) * 100",
-    numerator: "Visible sessions with ticketId present.",
+    numerator: "Visible sessions with a stored work item id present.",
     denominator: "Count of visible sessions in range.",
   },
   decisionExtractionCoverage: {
